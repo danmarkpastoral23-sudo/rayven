@@ -755,10 +755,22 @@ function buildPptx(outFile) {
   fs.writeFileSync(py, `
 import zipfile, os, sys
 d, o = sys.argv[1], sys.argv[2]
-with zipfile.ZipFile(o,'w',zipfile.ZIP_DEFLATED) as z:
-    for root,dirs,files in os.walk(d):
-        for f in files:
-            fp=os.path.join(root,f); z.write(fp,os.path.relpath(fp,d))
+
+# OOXML requires [Content_Types].xml to be the FIRST entry and STORED (uncompressed)
+ct_path = os.path.join(d, '[Content_Types].xml')
+with zipfile.ZipFile(o, 'w') as z:
+    # Write [Content_Types].xml first, uncompressed (STORED)
+    info = zipfile.ZipInfo('[Content_Types].xml')
+    with open(ct_path, 'rb') as f:
+        z.writestr(info, f.read())  # default compress_type=ZIP_STORED
+    # Write everything else compressed
+    for root, dirs, files in os.walk(d):
+        for fname in files:
+            fp = os.path.join(root, fname)
+            arc = os.path.relpath(fp, d)
+            if arc == '[Content_Types].xml':
+                continue
+            z.write(fp, arc, compress_type=zipfile.ZIP_DEFLATED)
 print("OK:", o)
 `);
   try {
